@@ -8,6 +8,8 @@ password=secretpw
 # following the HA topic format: <discovery_prefix>/<component>/[<node_id>/]<object_id>/
 topic=homeassistant/binary_sensor/house/speedtest
 name=speedtest
+# generate a new uuid for every device!
+uuid=12345678-9012-3456-7890-123456789012
 
 # Speedtest
 # (Vereinigte Stadtwerke Media GmbH (Bad Oldesloe) - get your id like so: https://www.hivelocity.net/kb/how-to-use-hivelocitys-speedtest-servers-with-speedtest-cli/)

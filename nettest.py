@@ -16,7 +16,12 @@ from dotenv import load_dotenv
 load_dotenv("./env-sample.env")
 
 # state variables
+is_initialized = False
 phao_client = None
+testserver_name = None
+up_speed = 0.0
+down_speed = 0.0
+
 # config variables
 app_mode = os.getenv("app_mode")
 interval = int(os.getenv("interval"))
@@ -27,6 +32,8 @@ user = os.getenv("user")
 password = os.getenv("password")
 test_server = [] if os.getenv("test_server") == "False" else [int(os.getenv("test_server"))]
 name = os.getenv("name")
+uuid = os.getenv("uuid")
+
 # Splunk env:
 http_event_collector_key = os.getenv("splunk_hec_key")
 http_event_collector_host = os.getenv("splunk_server")
@@ -39,31 +46,35 @@ splunk_index = os.getenv("splunk_index")
 
 # JSON config payload for HomeAssistant
 device_config = {
-	"name": name
+	"name": name,
+	"identifiers": uuid
 }
 name_config_payload = {
 	"name": name + " ServerName",
-	"state_topic": topic.to_string()+"N/state",
-	"exp_aft": 3660, 
+	"unique_id": name.replace(" ","_") + "_ServerName",
+	"state_topic": topic+"/state",
+	"expire_after": 3660, 
 	"icon": "mdi:speedometer", 
-	"value_template": "{{value_json.name | is_defined}}",
+	"value_template": "{{value_json.server_name | is_defined}}",
 	"device": device_config
 }
 up_config_payload = {
 	"name": name + " Upload", 
-	"unit_of_meas": "Mbit/s", 
-	"state_topic": topic.to_string()+"U/state",
-	"exp_aft": 3660, 
+	"unique_id": name.replace(" ","_") + "_Upload",
+	"unit_of_measurement": "Mbit/s", 
+	"state_topic": topic+"/state",
+	"expire_after": 3660, 
 	"icon": "mdi:speedometer", 
 	"state_class": "measurement",
 	"value_template": "{{value_json.up | is_defined}}",
 	"device": device_config
 }
 down_config_payload = {
-	"name": name + " Download", 
-	"unit_of_meas": "Mbit/s", 
-	"state_topic": topic.to_string()+"D/state",
-	"exp_aft": 3660, 
+	"name": name + " Download",
+	"unique_id": name.replace(" ","_") + "_Download",
+	"unit_of_measurement": "Mbit/s", 
+	"state_topic": topic+"/state",
+	"expire_after": 3660, 
 	"icon": "mdi:speedometer", 
 	"state_class": "measurement",
 	"value_template": "{{value_json.down | is_defined}}",
@@ -144,21 +155,35 @@ def publishToMqtt():
 	data_payload["down"] = down_speed
 	phao_client.publish(topic+"/state",json.dumps(data_payload))
 
+def setupMQTTDevice():
+	if app_mode == 'debug': print("Initilizing MQTT Device....")
+	phao_client.publish(topic+"N/config",json.dumps(name_config_payload), retain=True)
+	phao_client.publish(topic+"U/config",json.dumps(up_config_payload), retain=True)
+	phao_client.publish(topic+"D/config",json.dumps(down_config_payload), retain=True)
+
 # subscribe to config topic to check init-state
 def on_connect(client, userdata, flags, rc):
 	if rc==0:
 		print("Connected with result code 0")
+		client.subscribe(topic+"N/config")
 	else:
 		raise ValueError("Bad connection returned code=",rc)
+
+def on_message(client, userdata, msg):
+	if msg.topic.rpartition("/")[-1] == "config":
+		print ("configured device found: " + str(msg.payload))
+		is_initialized = True
 
 def initMqtt():
 	global phao_client
 	if app_mode == 'debug': print("Initilizing MQTT Service....")
 	phao_client = mqtt.Client(name)
 	phao_client.on_connect = on_connect
+	phao_client.on_message = on_message
 	phao_client.username_pw_set(user, password=password)
 	phao_client.connect(broker,port)
 	
+
 def main(interval):
 	print("app mode: "+app_mode)
 
@@ -169,6 +194,12 @@ def main(interval):
 		time.sleep(1)
 	phao_client.loop_start()
 
+	# check if device is_initialized and setup if not
+	if not is_initialized:
+		setupMQTTDevice()
+	elif app_mode == 'debug': print("device is already initialized....")
+
+	# main test loop
 	while True:
 		if app_mode == 'debug': print("Starting network tests....")
 		testDownSpeed()
