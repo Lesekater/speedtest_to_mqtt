@@ -15,6 +15,9 @@ from dotenv import load_dotenv
 # set custom .env file-path if your file isn't found
 load_dotenv("./env-sample.env")
 
+# state variables
+phao_client = None
+# config variables
 app_mode = os.getenv("app_mode")
 interval = int(os.getenv("interval"))
 broker = os.getenv("broker")
@@ -98,8 +101,8 @@ def splunkIt(test,result,total_elapsed_time):
 
 
 def testDownSpeed():
-	if app_mode == 'debug':
-		print("Starting Download test...")
+	global down_speed, testserver_name
+	if app_mode == 'debug': print("Starting Download test...")
 	start = time.time()
 	speedtester = speedtest.Speedtest()
 	speedtester.get_servers(test_server)
@@ -107,16 +110,15 @@ def testDownSpeed():
 	speed = round(speedtester.download() / 1000 / 1000)
 	end = time.time()
 	total_elapsed_time = (end - start)
-	if app_mode == 'debug':
-		print("Publishing Download result {} to MQTT...".format(speed))
-	publishToMqtt('down', speed)
-	publishToMqtt('name', best_server["sponsor"])
+	if app_mode == 'debug': print("Saving Download result {}...".format(speed))
+	testserver_name = best_server["sponsor"]
+	down_speed = speed
 	if http_event_collector_key:
 		splunkIt('download',speed,total_elapsed_time)
 
 
 def testUpSpeed():
-	if app_mode == 'debug':
+	global up_speed
 	if app_mode == 'debug': print("Starting Upload test...")
 	start = time.time()
 	speedtester = speedtest.Speedtest()
@@ -125,30 +127,54 @@ def testUpSpeed():
 	speed = round(speedtester.upload() / 1000 / 1000)
 	end = time.time()
 	total_elapsed_time = (end - start)
-	if app_mode == 'debug':
-		print("Publishing Upload test result {} to MQTT...".format(speed))
-	publishToMqtt('up', speed)
+	if app_mode == 'debug': print("Saving Upload test result {}...".format(speed))
+	up_speed = speed
 	if http_event_collector_key:
 		splunkIt('upload',speed,total_elapsed_time)
 
-def on_publish(client,userdata,result):             
-    pass
+def publishToMqtt():
+	if app_mode == 'debug': print("Publishing test results {},{},{} to MQTT...".format(testserver_name, up_speed, down_speed))
+	data_payload = {
+		"server_name": "",
+		"up_speed": 0.0,
+		"down_speed": 0.0,
+	}
+	data_payload["server_name"] = testserver_name
+	data_payload["up"] = up_speed
+	data_payload["down"] = down_speed
+	phao_client.publish(topic+"/state",json.dumps(data_payload))
 
-def publishToMqtt(test, speed):
-	paho= mqtt.Client("speedtest") 
-	paho.username_pw_set(user, password=password)                           
-	paho.on_publish = on_publish                         
-	paho.connect(broker,port)                                 
-	ret= paho.publish(topic+"{}".format(test),speed) 
-	paho.disconnect()
+# subscribe to config topic to check init-state
+def on_connect(client, userdata, flags, rc):
+	if rc==0:
+		print("Connected with result code 0")
+	else:
+		raise ValueError("Bad connection returned code=",rc)
 
+def initMqtt():
+	global phao_client
+	if app_mode == 'debug': print("Initilizing MQTT Service....")
+	phao_client = mqtt.Client(name)
+	phao_client.on_connect = on_connect
+	phao_client.username_pw_set(user, password=password)
+	phao_client.connect(broker,port)
+	
 def main(interval):
+	print("app mode: "+app_mode)
+
+	# setup mqtt service
+	initMqtt()
+	while (not phao_client):
+		if app_mode == 'debug': print("wating for mqtt connect....")
+		time.sleep(1)
+	phao_client.loop_start()
+
 	while True:
 		if app_mode == 'debug': print("Starting network tests....")
 		testDownSpeed()
 		testUpSpeed()
-		if app_mode == 'debug':
-			print("Tests completed...")
+		publishToMqtt()
+		if app_mode == 'debug': print("Tests completed...")
 		if interval > 0:
 			print("Time to sleep for {} seconds\n".format(interval))
 			time.sleep(interval)
