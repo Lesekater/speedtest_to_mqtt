@@ -77,8 +77,7 @@ if http_event_collector_key:
 		http_event_collector_ssl = True
 
 def splunkIt(test,result,total_elapsed_time):
-	if app_mode == 'debug':
-		print("Time to Splunk It Yo...\n")
+	if app_mode == 'debug': print("Time to Splunk It Yo...\n")
 	logevent = http_event_collector(http_event_collector_key, http_event_collector_host, http_event_port = http_event_collector_port, http_event_server_ssl = http_event_collector_ssl)
 	logevent.popNullFields = True
 
@@ -95,8 +94,7 @@ def splunkIt(test,result,total_elapsed_time):
 	payload.update({"event":event})
 	logevent.sendEvent(payload)
 	logevent.flushBatch()
-	if app_mode == 'debug':
-		print("It has been Splunked...\n")
+	if app_mode == 'debug': print("It has been Splunked...\n")
 
 
 def testDownSpeed():
@@ -119,7 +117,7 @@ def testDownSpeed():
 
 def testUpSpeed():
 	if app_mode == 'debug':
-		print("Starting Upload test...")
+	if app_mode == 'debug': print("Starting Upload test...")
 	start = time.time()
 	speedtester = speedtest.Speedtest()
 	speedtester.get_servers(test_server)
@@ -146,8 +144,7 @@ def publishToMqtt(test, speed):
 
 def main(interval):
 	while True:
-		if app_mode == 'debug':
-			print("Starting network tests....")
+		if app_mode == 'debug': print("Starting network tests....")
 		testDownSpeed()
 		testUpSpeed()
 		if app_mode == 'debug':
@@ -156,8 +153,7 @@ def main(interval):
 			print("Time to sleep for {} seconds\n".format(interval))
 			time.sleep(interval)
 		else:
-			if app_mode == 'debug':
-				print("No Interval set...exiting...\n")
+			if app_mode == 'debug': print("No Interval set...exiting...\n")
 			sys.exit()
 
 if __name__ == "__main__":
