@@ -23,6 +23,7 @@ topic = os.getenv("topic")
 user = os.getenv("user")
 password = os.getenv("password")
 test_server = [] if os.getenv("test_server") == "False" else [int(os.getenv("test_server"))]
+name = os.getenv("name")
 # Splunk env:
 http_event_collector_key = os.getenv("splunk_hec_key")
 http_event_collector_host = os.getenv("splunk_server")
@@ -32,6 +33,39 @@ splunk_host = os.getenv("splunk_host")
 splunk_source = os.getenv("splunk_source")
 splunk_sourcetype = os.getenv("splunk_sourcetype")
 splunk_index = os.getenv("splunk_index")
+
+# JSON config payload for HomeAssistant
+device_config = {
+	"name": name
+}
+name_config_payload = {
+	"name": name + " ServerName",
+	"state_topic": topic.to_string()+"N/state",
+	"exp_aft": 3660, 
+	"icon": "mdi:speedometer", 
+	"value_template": "{{value_json.name | is_defined}}",
+	"device": device_config
+}
+up_config_payload = {
+	"name": name + " Upload", 
+	"unit_of_meas": "Mbit/s", 
+	"state_topic": topic.to_string()+"U/state",
+	"exp_aft": 3660, 
+	"icon": "mdi:speedometer", 
+	"state_class": "measurement",
+	"value_template": "{{value_json.up | is_defined}}",
+	"device": device_config
+}
+down_config_payload = {
+	"name": name + " Download", 
+	"unit_of_meas": "Mbit/s", 
+	"state_topic": topic.to_string()+"D/state",
+	"exp_aft": 3660, 
+	"icon": "mdi:speedometer", 
+	"state_class": "measurement",
+	"value_template": "{{value_json.down | is_defined}}",
+	"device": device_config
+}
 
 # if splunk hec key set in .env load the splunk libraries
 if http_event_collector_key:
